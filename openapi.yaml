@@ -1,0 +1,356 @@
+openapi: 3.0.3
+info:
+  title: BitNest
+  version: 0.1.0
+  description: >-
+    Local quantization region packaging for deploying low-bit DNNs on resource-constrained IoT devices.
+  x-product-slug: ai-iot-bitnest
+  x-source: ai-in-iot/1805.09473/
+servers:
+  - url: https://api.example.com
+tags:
+  - name: Models
+  - name: Packages
+  - name: EvalReports
+  - name: Fleets
+  - name: Privacy
+paths:
+  /v1/models:
+    get:
+      operationId: listModels
+      tags: [Models]
+      security: [{ BearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Cursor" }, { $ref: "#/components/parameters/Limit" }]
+      responses:
+        "200":
+          description: Models
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ListEnvelopeModelArtifact" }
+    post:
+      operationId: registerModel
+      tags: [Models]
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ModelArtifact" }
+      responses:
+        "201":
+          description: Registered
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DataEnvelopeModelArtifact" }
+  /v1/packages:
+    get:
+      operationId: listPackages
+      tags: [Packages]
+      security: [{ BearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Cursor" }, { $ref: "#/components/parameters/Limit" }]
+      responses:
+        "200":
+          description: Packages
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ListEnvelopePackage" }
+    post:
+      operationId: createPackage
+      tags: [Packages]
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [modelId, bitWidth, localRegions]
+              properties:
+                modelId: { type: string }
+                bitWidth: { type: integer, enum: [8, 4, 2, 1] }
+                localRegions: { type: boolean }
+                lutSubstitution: { type: boolean }
+                targetBoardId: { type: string }
+      responses:
+        "202":
+          description: Packing accepted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DataEnvelopePackage" }
+  /v1/packages/{packageId}/promote:
+    parameters: [{ name: packageId, in: path, required: true, schema: { type: string } }]
+    post:
+      operationId: promotePackage
+      tags: [Packages]
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200":
+          description: Promoted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DataEnvelopePackage" }
+  /v1/eval-reports:
+    get:
+      operationId: listEvalReports
+      tags: [EvalReports]
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+        - name: packageId
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Eval reports
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ListEnvelopeEvalReport" }
+  /v1/fleets/{fleetId}/deployments:
+    parameters: [{ name: fleetId, in: path, required: true, schema: { type: string } }]
+    post:
+      operationId: deployPackageToFleet
+      tags: [Fleets]
+      security: [{ BearerAuth: [] }, { ApiKeyAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [packageId]
+              properties:
+                packageId: { type: string }
+      responses:
+        "202":
+          description: Deployment accepted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DataEnvelopeDeployment" }
+  /v1/fleets/{fleetId}/rollbacks:
+    parameters: [{ name: fleetId, in: path, required: true, schema: { type: string } }]
+    post:
+      operationId: rollbackFleet
+      tags: [Fleets]
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [packageId]
+              properties:
+                packageId: { type: string }
+      responses:
+        "202":
+          description: Rollback accepted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DataEnvelopeDeployment" }
+  /v1/privacy/policies:
+    get:
+      operationId: getPrivacyPolicy
+      tags: [Privacy]
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: workspaceId
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Policy
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DataEnvelopePrivacyPolicy" }
+    put:
+      operationId: updatePrivacyPolicy
+      tags: [Privacy]
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PrivacyPolicy" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DataEnvelopePrivacyPolicy" }
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+  schemas:
+    ResponseMeta:
+      type: object
+      required: [requestId, timestamp]
+      properties:
+        requestId: { type: string }
+        timestamp: { type: string, format: date-time }
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+
+    ModelArtifact:
+      type: object
+      required: [id, name, framework]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        framework: { type: string, enum: [caffe, onnx] }
+        floatBaselineMetric: { type: number, format: float }
+    Package:
+      type: object
+      required: [id, modelId, bitWidth, localRegions, status]
+      properties:
+        id: { type: string }
+        modelId: { type: string }
+        bitWidth: { type: integer, enum: [8, 4, 2, 1] }
+        localRegions: { type: boolean }
+        lutSubstitution: { type: boolean }
+        status: { type: string, enum: [packing, ready, promoted, failed, retired] }
+        speedupVsFloat: { type: number, format: float }
+    EvalReport:
+      type: object
+      required: [id, packageId, metricDelta, passedGate]
+      properties:
+        id: { type: string }
+        packageId: { type: string }
+        metricDelta: { type: number, format: float }
+        top1Delta: { type: number, format: float }
+        top5Delta: { type: number, format: float }
+        passedGate: { type: boolean }
+    Deployment:
+      type: object
+      required: [id, fleetId, packageId, status]
+      properties:
+        id: { type: string }
+        fleetId: { type: string }
+        packageId: { type: string }
+        status: { type: string, enum: [pending, in_progress, complete, rolled_back] }
+    PrivacyPolicy:
+      type: object
+      required: [workspaceId, onDeviceOnly, calibrationRetentionHours]
+      properties:
+        workspaceId: { type: string }
+        onDeviceOnly: { type: boolean }
+        calibrationRetentionHours: { type: integer }
+    DataEnvelopeModelArtifact:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: "#/components/schemas/ModelArtifact" }
+        meta: { $ref: "#/components/schemas/ResponseMeta" }
+    ListEnvelopeModelArtifact:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/ModelArtifact" }
+            nextCursor: { type: string }
+        meta: { $ref: "#/components/schemas/ResponseMeta" }
+    DataEnvelopePackage:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: "#/components/schemas/Package" }
+        meta: { $ref: "#/components/schemas/ResponseMeta" }
+    ListEnvelopePackage:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/Package" }
+            nextCursor: { type: string }
+        meta: { $ref: "#/components/schemas/ResponseMeta" }
+    DataEnvelopeEvalReport:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: "#/components/schemas/EvalReport" }
+        meta: { $ref: "#/components/schemas/ResponseMeta" }
+    ListEnvelopeEvalReport:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/EvalReport" }
+            nextCursor: { type: string }
+        meta: { $ref: "#/components/schemas/ResponseMeta" }
+    DataEnvelopeDeployment:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: "#/components/schemas/Deployment" }
+        meta: { $ref: "#/components/schemas/ResponseMeta" }
+    ListEnvelopeDeployment:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/Deployment" }
+            nextCursor: { type: string }
+        meta: { $ref: "#/components/schemas/ResponseMeta" }
+    DataEnvelopePrivacyPolicy:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: "#/components/schemas/PrivacyPolicy" }
+        meta: { $ref: "#/components/schemas/ResponseMeta" }
+    ListEnvelopePrivacyPolicy:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/PrivacyPolicy" }
+            nextCursor: { type: string }
+        meta: { $ref: "#/components/schemas/ResponseMeta" }
